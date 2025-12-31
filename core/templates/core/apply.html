@@ -137,25 +137,33 @@
                                application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                        required>
                 <div class="form-text">
-                  Allowed formats: PDF, DOC, DOCX, XLSX
+                  Max size: <b>5MB</b> (Allowed: PDF, DOC, DOCX, XLSX)
+                </div>
+                <div id="cvError" class="text-danger small mt-1 d-none"></div>
                 </div>
               </div>
 
               <!-- Work history -->
-              <div class="mb-3">
-                <label class="form-label">Work History (Optional)</label>
-                <input type="file" class="form-control" name="work_history"
-                       accept=".pdf,.doc,.docx,.xlsx">
-              </div>
+<div class="mb-3">
+  <label class="form-label">Work History (Optional)</label>
+  <input type="file" class="form-control" name="work_history" accept=".pdf,.doc,.docx,.xlsx">
+
+  <div class="form-text">Max size: <b>5MB</b> (Optional)</div>
+  <div id="workHistoryError" class="text-danger small mt-1 d-none"></div>
+</div>
+
 
               <!-- Video -->
-              <div class="mb-3">
-                <label class="form-label required">Introduction Video (max 2 minutes)</label>
-                <input type="file" class="form-control" name="video"
-                       accept="video/*" required>
-                <div class="form-text">Recommended format: MP4</div>
-              </div>
-            </div>
+<div class="mb-3">
+  <label class="form-label required">Introduction Video (max 2 minutes)</label>
+
+  <input type="file" class="form-control" name="video" accept="video/*" required>
+
+  <div class="form-text">Max size: <b>10MB</b> (Recommended: MP4, max 2 minutes)</div>
+
+  <!-- ✅ error ကို video input အောက်မှာပဲထား -->
+  <div id="videoError" class="text-danger small mt-1 d-none"></div>
+</div>
 
             <!-- Submit -->
             <div class="d-grid">
@@ -176,6 +184,59 @@
     </div>
   </div>
 </div>
+<script>
+  // ====== Config (MB) ======
+  const LIMITS_MB = {
+    cv: 5,
+    work_history: 5,
+    video: 10,
+  };
+
+  function mb(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(2);
+  }
+
+  function showError(el, message) {
+    el.textContent = message;
+    el.classList.remove("d-none");
+  }
+
+  function hideError(el) {
+    el.textContent = "";
+    el.classList.add("d-none");
+  }
+
+  function bindSizeValidation(inputName, errorId, maxMb) {
+    const input = document.querySelector(`input[name="${inputName}"]`);
+    const err = document.getElementById(errorId);
+
+    if (!input || !err) return;
+
+    input.addEventListener("change", function () {
+      hideError(err);
+
+      if (!input.files || input.files.length === 0) return;
+
+      const file = input.files[0];
+      const maxBytes = maxMb * 1024 * 1024;
+
+      if (file.size > maxBytes) {
+        showError(
+          err,
+          `File is too large (${mb(file.size)} MB). Max allowed is ${maxMb} MB.`
+        );
+        // Reset selection -> prevents upload
+        input.value = "";
+      }
+    });
+  }
+
+  // Bind
+  bindSizeValidation("cv", "cvError", LIMITS_MB.cv);
+  bindSizeValidation("work_history", "workHistoryError", LIMITS_MB.work_history);
+  bindSizeValidation("video", "videoError", LIMITS_MB.video);
+</script>
+
 
 </body>
 </html>
