@@ -109,10 +109,10 @@ class AppFile(models.Model):
     def __str__(self):
         return f"{self.application} - {self.kind}"
 
-class EmailLog(models.Model):
-    application = models.ForeignKey("Application", on_delete=models.CASCADE)
-    event_key = models.CharField(max_length=120)
-    created_at = models.DateTimeField(auto_now_add=True)
+#class EmailLog(models.Model):
+   # application = models.ForeignKey("Application", on_delete=models.CASCADE)
+   # event_key = models.CharField(max_length=120)
+   # created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        unique_together = ("application", "event_key")
+    #class Meta:
+     #   unique_together = ("application", "event_key")
