@@ -1,0 +1,58 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block sidebar %}
+  {{ block.super }}
+
+  <div class="module" style="margin-top:16px;">
+    <table>
+      <caption style="background:#335f73; color:#fff;">
+        SETTINGS
+      </caption>
+
+      <!-- ✅ Language (nested) -->
+      <tr>
+        <th scope="row" style="padding:0;">
+          <details style="padding:10px 12px;">
+            <summary style="cursor:pointer; font-weight:600;">
+              Language
+            </summary>
+
+            <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+              <form action="{% url 'set_language' %}" method="post" style="margin:0;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="language" value="ja">
+                <button type="submit"
+                        style="width:100%; text-align:left; padding:8px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#1c1c1c; color:#fff; cursor:pointer;">
+                  Japanese (日本語)
+                </button>
+              </form>
+
+              <form action="{% url 'set_language' %}" method="post" style="margin:0;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="language" value="en">
+                <button type="submit"
+                        style="width:100%; text-align:left; padding:8px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#1c1c1c; color:#fff; cursor:pointer;">
+                  English
+                </button>
+              </form>
+            </div>
+          </details>
+        </th>
+        <td>&nbsp;</td>
+      </tr>
+
+      <!-- ✅ About -->
+      <tr>
+        <th scope="row">
+          <a href="/about/" style="font-weight:600;">About</a>
+        </th>
+        <td>&nbsp;</td>
+      </tr>
+
+
+    </table>
+  </div>
+{% endblock %}
