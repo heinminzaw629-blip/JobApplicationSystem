@@ -10,22 +10,10 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <style>
-    body {
-      background: #f4f6f9;
-    }
-    .app-card {
-      border-radius: 16px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.08);
-    }
-    .section-title {
-      font-weight: 600;
-      font-size: 1.05rem;
-      margin-bottom: .75rem;
-    }
-    .required::after {
-      content: " *";
-      color: #dc3545;
-    }
+    body { background: #f4f6f9; }
+    .app-card { border-radius: 16px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
+    .section-title { font-weight: 600; font-size: 1.05rem; margin-bottom: .75rem; }
+    .required::after { content: " *"; color: #dc3545; }
   </style>
 </head>
 
@@ -52,28 +40,29 @@
 
           <form method="post" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
-            {% if form.errors %}
-  <div class="alert alert-danger">
-    <strong>Please fix the following:</strong>
-    <ul class="mb-0">
-      {% for field in form %}
-        {% for error in field.errors %}
-          <li><b>{{ field.name }}</b>: {{ error }}</li>
-        {% endfor %}
-      {% endfor %}
-      {% for error in form.non_field_errors %}
-        <li>{{ error }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
 
+            {% if form.errors %}
+              <div class="alert alert-danger">
+                <strong>Please fix the following:</strong>
+                <ul class="mb-0">
+                  {% for field in form %}
+                    {% for error in field.errors %}
+                      <li><b>{{ field.name }}</b>: {{ error }}</li>
+                    {% endfor %}
+                  {% endfor %}
+                  {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
 
             <!-- Company -->
             <div class="mb-4">
               <div class="section-title required">Company Information</div>
-              <input type="number" class="form-control" name="company_id"
-                     placeholder="Company ID" required>
+
+              <input type="text" class="form-control" name="company_id"
+                     placeholder="Company Name" required>
             </div>
 
             <!-- Applicant info -->
@@ -101,24 +90,47 @@
                          placeholder="Phone number">
                 </div>
 
+                <!-- Country -->
+                <div class="col-md-6">
+                  <input type="text" class="form-control" name="country"
+                         placeholder="Country (e.g. Japan, Myanmar)" required>
+                </div>
+
                 <!-- Location -->
                 <div class="col-md-6">
                   <input type="text" class="form-control" name="location"
                          placeholder="Location (e.g. Tokyo, Saitama)" required>
                 </div>
 
-                <!-- Visa type -->
+                <!-- ✅ Select Visa (NEW) -->
                 <div class="col-md-6">
-                  <select class="form-select" name="visa_type" required>
-                    <option value="" disabled selected>Select visa / category</option>
+                  <select class="form-select" name="visa" id="visaSelect" required>
+                    <option value="" disabled selected>Select Visa</option>
                     <option value="work_visa">Work Visa</option>
-                    <option value="tokuteigino">Tokutei Ginou</option>
-                    <option value="building_cleaning">Building Cleaning</option>
-                    <option value="restaurant">Restaurant</option>
-                    <option value="hotel_reception">Hotel Reception</option>
+                    <option value="tokuteigino">Tokuteigino</option>
+                    <option value="tokutei">Tokutei</option>
                     <option value="kaigo">Kaigo</option>
+                    <option value="dependent">Dependent</option>
+                    <option value="student_visa">Student Visa</option>
+                    <option value="pr">PR</option>
                   </select>
                 </div>
+
+                <!-- ✅ Category (NEW) -->
+                <div class="col-md-6">
+                  <select class="form-select" name="category" id="categorySelect" required>
+                    <option value="" disabled selected>Category</option>
+                    <option value="it">IT</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="building_cleaning">Building Cleaning</option>
+                    <option value="hotel_reception">Hotel Reception</option>
+                    <option value="part_time">Part-Time</option>
+                    <option value="translator">Translator</option>
+                  </select>
+                </div>
+
+                <!-- ✅ backend logic မပျက်အောင် visa_type hidden -->
+                <input type="hidden" name="visa_type" id="visa_type_hidden">
               </div>
             </div>
 
@@ -140,30 +152,24 @@
                   Max size: <b>5MB</b> (Allowed: PDF, DOC, DOCX, XLSX)
                 </div>
                 <div id="cvError" class="text-danger small mt-1 d-none"></div>
-                </div>
               </div>
+            </div>
 
-              <!-- Work history -->
-<div class="mb-3">
-  <label class="form-label">Work History (Optional)</label>
-  <input type="file" class="form-control" name="work_history" accept=".pdf,.doc,.docx,.xlsx">
+            <!-- Work history -->
+            <div class="mb-3">
+              <label class="form-label">Work History (Optional)</label>
+              <input type="file" class="form-control" name="work_history" accept=".pdf,.doc,.docx,.xlsx">
+              <div class="form-text">Max size: <b>5MB</b> (Optional)</div>
+              <div id="workHistoryError" class="text-danger small mt-1 d-none"></div>
+            </div>
 
-  <div class="form-text">Max size: <b>5MB</b> (Optional)</div>
-  <div id="workHistoryError" class="text-danger small mt-1 d-none"></div>
-</div>
-
-
-              <!-- Video -->
-<div class="mb-3">
-  <label class="form-label required">Introduction Video (max 2 minutes)</label>
-
-  <input type="file" class="form-control" name="video" accept="video/*" required>
-
-  <div class="form-text">Max size: <b>10MB</b> (Recommended: MP4, max 2 minutes)</div>
-
-  <!-- ✅ error ကို video input အောက်မှာပဲထား -->
-  <div id="videoError" class="text-danger small mt-1 d-none"></div>
-</div>
+            <!-- Video -->
+            <div class="mb-3">
+              <label class="form-label required">Introduction Video (max 2 minutes)</label>
+              <input type="file" class="form-control" name="video" accept="video/*" required>
+              <div class="form-text">Max size: <b>10MB</b> (Recommended: MP4, max 2 minutes)</div>
+              <div id="videoError" class="text-danger small mt-1 d-none"></div>
+            </div>
 
             <!-- Submit -->
             <div class="d-grid">
@@ -184,6 +190,7 @@
     </div>
   </div>
 </div>
+
 <script>
   // ====== Config (MB) ======
   const LIMITS_MB = {
@@ -225,18 +232,31 @@
           err,
           `File is too large (${mb(file.size)} MB). Max allowed is ${maxMb} MB.`
         );
-        // Reset selection -> prevents upload
         input.value = "";
       }
     });
   }
 
-  // Bind
+  // Bind file validation
   bindSizeValidation("cv", "cvError", LIMITS_MB.cv);
   bindSizeValidation("work_history", "workHistoryError", LIMITS_MB.work_history);
   bindSizeValidation("video", "videoError", LIMITS_MB.video);
-</script>
 
+  // ✅ pack visa + category into hidden visa_type (backend uses visa_type)
+  function updateVisaTypeHidden() {
+    const visa = document.getElementById("visaSelect")?.value || "";
+    const category = document.getElementById("categorySelect")?.value || "";
+    const hidden = document.getElementById("visa_type_hidden");
+    if (!hidden) return;
+    hidden.value = (visa && category) ? `v:${visa};c:${category}` : "";
+  }
+
+  const visaSel = document.getElementById("visaSelect");
+  const catSel = document.getElementById("categorySelect");
+  if (visaSel) visaSel.addEventListener("change", updateVisaTypeHidden);
+  if (catSel) catSel.addEventListener("change", updateVisaTypeHidden);
+  updateVisaTypeHidden();
+</script>
 
 </body>
 </html>

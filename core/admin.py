@@ -4,13 +4,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import Group
 from django.db import models
+from django import forms
+from django.core.exceptions import ValidationError
+
+from .models import Company, CompanyUser, Application, AppFile
 
 admin.site.site_header = "Job_Application_System"
 admin.site.site_title = "Job_Application"
 admin.site.index_title = "Site_Administration"
-
-
-from .models import Company, CompanyUser, Application, AppFile
 
 
 # -------------------------------------------------
@@ -42,19 +43,16 @@ class UserAdmin(DjangoUserAdmin):
       - user_permissions
     """
 
-    # Remove the widgets that show groups/permissions
     filter_horizontal = ()
     filter_vertical = ()
 
-    # Remove groups/user_permissions from edit form fieldsets
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
-        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser")}),  # ✅ hide groups/user_permissions
+        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser")}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
 
-    # Remove groups/user_permissions from add-user form too
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
@@ -73,25 +71,125 @@ class AppFileInline(admin.TabularInline):
 
 
 # -------------------------------------------------
+# ✅ Application Admin Form (approved_by rule)
+# -------------------------------------------------
+class ApplicationAdminForm(forms.ModelForm):
+    class Meta:
+        model = Application
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+
+        # ✅ approved_by dropdown ထဲမှာ login user တစ်ယောက်ထဲပဲ ပြ
+        if self.request and "approved_by" in self.fields:
+            UserModel = get_user_model()
+            field = self.fields["approved_by"]
+
+            # dropdown = login user တစ်ယောက်ထဲ
+            field.queryset = UserModel.objects.filter(pk=self.request.user.pk)
+
+            # ✅ Approved by ဘေးက (+ ✏️ ❌ 👁) buttons ဖျက်
+            field.widget.can_add_related = False
+            field.widget.can_change_related = False
+            field.widget.can_delete_related = False
+            field.widget.can_view_related = False
+
+    def clean(self):
+        cleaned = super().clean()
+        req = self.request
+        status = cleaned.get("status")
+        approved_by = cleaned.get("approved_by")
+
+        if not req:
+            return cleaned
+
+        target_statuses = {
+            Application.STATUS_APPROVED,
+            Application.STATUS_REJECTED,
+            Application.STATUS_NEED_FIX,
+        }
+
+        if status in target_statuses:
+            if approved_by is None:
+                raise ValidationError({"approved_by": "approved_by is required when status is changed."})
+
+            if approved_by.pk != req.user.pk:
+                raise ValidationError({"approved_by": "approved_by must be the currently logged-in user."})
+
+        return cleaned
+
+
+# -------------------------------------------------
+# ✅ NEW: CompanyUser Admin Form (approved_by rule)
+# -------------------------------------------------
+class CompanyUserAdminForm(forms.ModelForm):
+    class Meta:
+        model = CompanyUser
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+
+        # ✅ approved_by dropdown = current login user only
+        if self.request and "approved_by" in self.fields:
+            UserModel = get_user_model()
+            field = self.fields["approved_by"]
+
+            # dropdown = login user တစ်ယောက်ထဲ
+            field.queryset = UserModel.objects.filter(pk=self.request.user.pk)
+
+            # ✅ Approved by ဘေးက (+ ✏️ ❌ 👁) buttons ဖျက်
+            field.widget.can_add_related = False
+            field.widget.can_change_related = False
+            field.widget.can_delete_related = False
+            field.widget.can_view_related = False
+
+    def clean(self):
+        cleaned = super().clean()
+        req = self.request
+        approved_by = cleaned.get("approved_by")
+
+        if not req:
+            return cleaned
+
+        # ✅ approved_by မရွေးရင် save မရ
+        if approved_by is None:
+            raise ValidationError({"approved_by": "approved_by is required."})
+
+        # ✅ approved_by က login user မဟုတ်ရင် save မရ
+        if approved_by.pk != req.user.pk:
+            raise ValidationError({"approved_by": "approved_by must be the currently logged-in user."})
+
+        return cleaned
+
+
+# -------------------------------------------------
 # Application Admin
 # -------------------------------------------------
 @admin.register(Application)
 class ApplicationAdmin(admin.ModelAdmin):
+    form = ApplicationAdminForm
+
     list_display = (
         "id",
         "applicant_name",
         "applicant_email",
         "status",
-        "visa_type",
+        "visa_selected",
+        "category",
         "location",
         "created_at",
+        "approved_by",
         "approved_at",
         "rejected_at",
         "need_fix_at",
     )
 
-    list_filter = ("status", "visa_type", "location", "company")
-    search_fields = ("applicant_name", "applicant_email")
+    list_filter = ("status", "category", "location", "company")
+    search_fields = ("applicant_name", "applicant_email", "visa_type", "category")
     inlines = [AppFileInline]
 
     readonly_fields = (
@@ -99,6 +197,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         "approved_at",
         "rejected_at",
         "need_fix_at",
+        "visa_selected",
     )
 
     fields = (
@@ -107,9 +206,12 @@ class ApplicationAdmin(admin.ModelAdmin):
         "applicant_email",
         "phone",
         "position",
+        "country",
         "location",
-        "visa_type",
+        "visa_selected",
+        "category",
         "status",
+        "approved_by",
         "review_note",
         "created_at",
         "approved_at",
@@ -117,7 +219,34 @@ class ApplicationAdmin(admin.ModelAdmin):
         "need_fix_at",
     )
 
-    # Review note hint + textarea size
+    def get_form(self, request, obj=None, **kwargs):
+        Form = super().get_form(request, obj, **kwargs)
+
+        class RequestInjectedForm(Form):
+            def __init__(self2, *args, **kw):
+                kw["request"] = request
+                super().__init__(*args, **kw)
+
+        return RequestInjectedForm
+
+    def visa_selected(self, obj):
+        s = obj.visa_type or ""
+        if s.startswith("v:") and ";c:" in s:
+            visa = s.split(";c:")[0].replace("v:", "")
+            LABELS = {
+                "work_visa": "Work Visa",
+                "tokuteigino": "Tokuteigino",
+                "tokutei": "Tokutei",
+                "kaigo": "Kaigo",
+                "dependent": "Dependent",
+                "student_visa": "Student Visa",
+                "pr": "PR",
+            }
+            return LABELS.get(visa, visa)
+        return s
+
+    visa_selected.short_description = "Visa (Applicant Selected)"
+
     formfield_overrides = {
         models.TextField: {
             "widget": admin.widgets.AdminTextareaWidget(
@@ -129,8 +258,19 @@ class ApplicationAdmin(admin.ModelAdmin):
         }
     }
 
-    # Status change => set timestamps
     def save_model(self, request, obj, form, change):
+        target_statuses = {
+            Application.STATUS_APPROVED,
+            Application.STATUS_REJECTED,
+            Application.STATUS_NEED_FIX,
+        }
+
+        if obj.status in target_statuses:
+            if obj.approved_by is None:
+                raise ValidationError("approved_by is required when status is changed.")
+            if obj.approved_by_id != request.user.pk:
+                raise ValidationError("approved_by must be the currently logged-in user.")
+
         if change and "status" in getattr(form, "changed_data", []):
             now = timezone.now()
 
@@ -158,6 +298,8 @@ class CompanyAdmin(admin.ModelAdmin):
 # -------------------------------------------------
 @admin.register(CompanyUser)
 class CompanyUserAdmin(admin.ModelAdmin):
+    form = CompanyUserAdminForm  # ✅ NEW
+
     list_display = (
         "id",
         "username",
@@ -176,7 +318,7 @@ class CompanyUserAdmin(admin.ModelAdmin):
     fields = (
         "company",
         "user",
-        # "username",  # keep commented if you don't want to edit it
+        # "username",
         "email",
         "phone",
         "address",
@@ -187,7 +329,19 @@ class CompanyUserAdmin(admin.ModelAdmin):
 
     readonly_fields = ("download_allowed_at",)
 
+    # ✅ NEW: request ကို form ထဲ inject (CompanyUserAdminForm အတွက်)
+    def get_form(self, request, obj=None, **kwargs):
+        Form = super().get_form(request, obj, **kwargs)
+
+        class RequestInjectedForm(Form):
+            def __init__(self2, *args, **kw):
+                kw["request"] = request
+                super().__init__(*args, **kw)
+
+        return RequestInjectedForm
+
     def save_model(self, request, obj, form, change):
+        # ✅ မင်း original logic မဖျက်
         if obj.approved_by and not obj.download_allowed_at:
             obj.download_allowed_at = timezone.now()
 

@@ -15,8 +15,10 @@ def apply_view(request):
     if request.method == "POST":
         form = ApplicationForm(request.POST, request.FILES)
         if form.is_valid():
-            company_id = form.cleaned_data.get("company_id")
-            company = Company.objects.filter(id=company_id).first() if company_id else None
+            #company_id = form.cleaned_data.get("company_id")
+            #company = Company.objects.filter(id=company_id).first() if company_id else None
+            company_name = (form.cleaned_data.get("company_id") or "").strip()
+            company = Company.objects.filter(name__iexact=company_name).first() if company_name else None
 
             app = Application.objects.create(
                 company=company,
@@ -24,9 +26,12 @@ def apply_view(request):
                 applicant_email=form.cleaned_data["applicant_email"],
                 phone=form.cleaned_data.get("phone", ""),
                 position=form.cleaned_data.get("position", ""),
+                country=form.cleaned_data.get("country", ""),  # ✅ add this
                 location=form.cleaned_data["location"],
                 visa_type=form.cleaned_data["visa_type"],
                 status=Application.STATUS_PENDING,
+                category=form.cleaned_data["category"],#add this
+
             )
 
             def save_file(kind, f):
@@ -105,5 +110,10 @@ def company_download_file(request, file_id: int):
         return HttpResponseForbidden("Not approved")
 
     return FileResponse(f.file.open("rb"), as_attachment=True, filename=f.file.name)
+
+    #return render(request, "core/apply.html", {"form": form, "companies": companies})
+    #ompanies = Company.objects.all().order_by("name")  # name field မဟုတ်ရင်ပြောင်း
+    return render(request, "core/apply.html", {"form": form, "companies": companies})
+
 
 

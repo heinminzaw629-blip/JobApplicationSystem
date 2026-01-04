@@ -73,11 +73,21 @@ class Application(models.Model):
     applicant_email = models.EmailField()
     phone = models.CharField(max_length=50, blank=True)
     position = models.CharField(max_length=200, blank=True)
-
+    country = models.CharField(max_length=100, blank=True, default="")  # ✅ add this
     location = models.CharField(max_length=200)
     visa_type = models.CharField(max_length=50, choices=VISA_CHOICES)
+    category = models.CharField(max_length=50, blank=True, default="")
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    # ✅ NEW: status change လုပ်တဲ့သူ (approved/rejected/need_fix) ကိုမှတ်ဖို့
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="application_status_changed",
+    )
 
     approved_at = models.DateTimeField(null=True, blank=True)
     rejected_at = models.DateTimeField(null=True, blank=True)
@@ -108,6 +118,7 @@ class AppFile(models.Model):
 
     def __str__(self):
         return f"{self.application} - {self.kind}"
+
 
 class EmailLog(models.Model):
     application = models.ForeignKey("Application", on_delete=models.CASCADE)
