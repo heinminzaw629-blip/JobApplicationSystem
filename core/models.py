@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
+from django.utils import timezone
 
 
 class Company(models.Model):
@@ -43,6 +44,14 @@ class CompanyUser(models.Model):
 
     def __str__(self):
         return self.username
+
+
+# ---------------------------------------
+# ✅ Soft-delete manager (deleted မဟုတ်တာပဲ default ပြန်ပေး)
+# ---------------------------------------
+class ActiveApplicationManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
 
 
 class Application(models.Model):
@@ -97,8 +106,43 @@ class Application(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ---------------------------------------
+    # ✅ Soft delete fields (NEW)
+    # ---------------------------------------
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    # ---------------------------------------
+    # ✅ Managers
+    # - objects: deleted မဟုတ်တာပဲ ပြန်ပေး
+    # - all_objects: deleted ပါအကုန်ပြန်ပေး
+    # ---------------------------------------
+    objects = ActiveApplicationManager()
+    all_objects = models.Manager()
+
     def __str__(self):
         return self.applicant_name
+
+    # ---------------------------------------
+    # ✅ Soft delete methods (NEW)
+    # ---------------------------------------
+    def soft_delete(self):
+        """
+        Hard delete မလုပ်ဘဲ deleted flag ပဲတင်တာ
+        """
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_at = timezone.now()
+            self.save(update_fields=["is_deleted", "deleted_at"])
+
+    def restore(self):
+        """
+        Soft delete လုပ်ထားတာကို ပြန် restore
+        """
+        if self.is_deleted:
+            self.is_deleted = False
+            self.deleted_at = None
+            self.save(update_fields=["is_deleted", "deleted_at"])
 
 
 class AppFile(models.Model):

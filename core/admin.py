@@ -122,7 +122,7 @@ class ApplicationAdminForm(forms.ModelForm):
 
 
 # -------------------------------------------------
-# ✅ NEW: CompanyUser Admin Form (approved_by rule)
+# ✅ CompanyUser Admin Form (approved_by rule)
 # -------------------------------------------------
 class CompanyUserAdminForm(forms.ModelForm):
     class Meta:
@@ -138,7 +138,6 @@ class CompanyUserAdminForm(forms.ModelForm):
             UserModel = get_user_model()
             field = self.fields["approved_by"]
 
-            # dropdown = login user တစ်ယောက်ထဲ
             field.queryset = UserModel.objects.filter(pk=self.request.user.pk)
 
             # ✅ Approved by ဘေးက (+ ✏️ ❌ 👁) buttons ဖျက်
@@ -155,15 +154,28 @@ class CompanyUserAdminForm(forms.ModelForm):
         if not req:
             return cleaned
 
-        # ✅ approved_by မရွေးရင် save မရ
         if approved_by is None:
             raise ValidationError({"approved_by": "approved_by is required."})
 
-        # ✅ approved_by က login user မဟုတ်ရင် save မရ
         if approved_by.pk != req.user.pk:
             raise ValidationError({"approved_by": "approved_by must be the currently logged-in user."})
 
         return cleaned
+
+
+# -------------------------------------------------
+# ✅ Soft delete / restore actions (Application)
+# -------------------------------------------------
+@admin.action(description="Soft delete selected applications")
+def soft_delete_selected_applications(modeladmin, request, queryset):
+    for obj in queryset:
+        obj.soft_delete()
+
+
+@admin.action(description="Restore selected applications")
+def restore_selected_applications(modeladmin, request, queryset):
+    for obj in queryset:
+        obj.restore()
 
 
 # -------------------------------------------------
@@ -186,11 +198,14 @@ class ApplicationAdmin(admin.ModelAdmin):
         "approved_at",
         "rejected_at",
         "need_fix_at",
+        "is_deleted",
+        "deleted_at",
     )
 
-    list_filter = ("status", "category", "location", "company")
+    list_filter = ("status", "category", "location", "company", "is_deleted")
     search_fields = ("applicant_name", "applicant_email", "visa_type", "category")
     inlines = [AppFileInline]
+    actions = [soft_delete_selected_applications, restore_selected_applications]
 
     readonly_fields = (
         "created_at",
@@ -198,6 +213,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         "rejected_at",
         "need_fix_at",
         "visa_selected",
+        "deleted_at",
     )
 
     fields = (
@@ -217,6 +233,8 @@ class ApplicationAdmin(admin.ModelAdmin):
         "approved_at",
         "rejected_at",
         "need_fix_at",
+        "is_deleted",
+        "deleted_at",
     )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -250,13 +268,18 @@ class ApplicationAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.TextField: {
             "widget": admin.widgets.AdminTextareaWidget(
-                attrs={
-                    "rows": 6,
-                    "placeholder": "Write feedback for the applicant (up to 3000 characters)."
-                }
+                attrs={"rows": 6, "placeholder": "Write feedback for the applicant (up to 3000 characters)."}
             )
         }
     }
+
+    # ✅ UX: Default = deleted မပြ (soft delete လုပ်ရင် list ကပျောက်)
+    # ✅ Restore လုပ်ချင်မှ filter is_deleted__exact=1 နဲ့ deleted ကိုမြင်
+    def get_queryset(self, request):
+        qs_all = Application.all_objects.all()
+        if "is_deleted__exact" in request.GET:
+            return qs_all
+        return Application.objects.all()
 
     def save_model(self, request, obj, form, change):
         target_statuses = {
@@ -273,7 +296,6 @@ class ApplicationAdmin(admin.ModelAdmin):
 
         if change and "status" in getattr(form, "changed_data", []):
             now = timezone.now()
-
             if obj.status == Application.STATUS_APPROVED and not obj.approved_at:
                 obj.approved_at = now
             elif obj.status == Application.STATUS_REJECTED and not obj.rejected_at:
@@ -282,6 +304,14 @@ class ApplicationAdmin(admin.ModelAdmin):
                 obj.need_fix_at = now
 
         super().save_model(request, obj, form, change)
+
+    # ✅ Admin delete ကို hard delete မဖြစ်အောင် soft delete
+    def delete_model(self, request, obj):
+        obj.soft_delete()
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            obj.soft_delete()
 
 
 # -------------------------------------------------
@@ -298,7 +328,7 @@ class CompanyAdmin(admin.ModelAdmin):
 # -------------------------------------------------
 @admin.register(CompanyUser)
 class CompanyUserAdmin(admin.ModelAdmin):
-    form = CompanyUserAdminForm  # ✅ NEW
+    form = CompanyUserAdminForm
 
     list_display = (
         "id",
@@ -318,7 +348,6 @@ class CompanyUserAdmin(admin.ModelAdmin):
     fields = (
         "company",
         "user",
-        # "username",
         "email",
         "phone",
         "address",
@@ -329,7 +358,6 @@ class CompanyUserAdmin(admin.ModelAdmin):
 
     readonly_fields = ("download_allowed_at",)
 
-    # ✅ NEW: request ကို form ထဲ inject (CompanyUserAdminForm အတွက်)
     def get_form(self, request, obj=None, **kwargs):
         Form = super().get_form(request, obj, **kwargs)
 
@@ -341,7 +369,6 @@ class CompanyUserAdmin(admin.ModelAdmin):
         return RequestInjectedForm
 
     def save_model(self, request, obj, form, change):
-        # ✅ မင်း original logic မဖျက်
         if obj.approved_by and not obj.download_allowed_at:
             obj.download_allowed_at = timezone.now()
 
